@@ -33,11 +33,15 @@ def generate_users(n_users: int) -> pd.DataFrame:
                 loc=segment_to_avg_session_minutes[segment], scale=2.0
             ),
         })
-    return pd.DataFrame(users)
+    df = pd.DataFrame(users)
+    # Clip lives HERE now — inside the function — so every caller
+    # (this file's __main__, run_pipeline.py, tests, anything future)
+    # automatically gets clean, valid data without repeating this line.
+    df["pre_experiment_avg_session_minutes"] = df["pre_experiment_avg_session_minutes"].clip(lower=0.5)
+    return df
 
 if __name__ == "__main__":
     df = generate_users(10000)
-    df["pre_experiment_avg_session_minutes"] = df["pre_experiment_avg_session_minutes"].clip(lower=0.5)
     df.to_csv("data/users.csv", index=False)
     print(f"Generated {len(df)} users")
     print(df.head())
