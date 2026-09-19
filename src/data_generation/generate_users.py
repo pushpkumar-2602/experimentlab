@@ -13,6 +13,7 @@ Faker.seed(42)
 def generate_users(n_users: int) -> pd.DataFrame:
     """Create a fake table of n_users users with basic profile info."""
     segment_to_avg_purchases = {"low": 1.0, "medium": 3.0, "high": 7.0}
+    segment_to_avg_session_minutes = {"low": 4.0, "medium": 7.0, "high": 11.0}
 
     users = []
     for user_id in range(1, n_users + 1):
@@ -28,11 +29,15 @@ def generate_users(n_users: int) -> pd.DataFrame:
             "pre_experiment_purchases": np.random.poisson(
                 lam=segment_to_avg_purchases[segment]
             ),
+            "pre_experiment_avg_session_minutes": np.random.normal(
+                loc=segment_to_avg_session_minutes[segment], scale=2.0
+            ),
         })
     return pd.DataFrame(users)
 
 if __name__ == "__main__":
     df = generate_users(10000)
+    df["pre_experiment_avg_session_minutes"] = df["pre_experiment_avg_session_minutes"].clip(lower=0.5)
     df.to_csv("data/users.csv", index=False)
     print(f"Generated {len(df)} users")
     print(df.head())
