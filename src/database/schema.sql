@@ -28,3 +28,13 @@ CREATE TABLE experiment_results (
     revenue NUMERIC NOT NULL DEFAULT 0,
     session_duration_minutes NUMERIC
 );
+
+DROP TABLE IF EXISTS users CASCADE;
+
+CREATE TABLE users (
+    user_id INTEGER PRIMARY KEY,
+    is_new_user BOOLEAN NOT NULL,
+    user_value_segment TEXT NOT NULL CHECK (user_value_segment IN ('low', 'medium', 'high')),
+    pre_experiment_purchases INTEGER,
+    pre_experiment_avg_session_minutes NUMERIC
+);
