@@ -32,7 +32,7 @@ def analyze_ab_test(results_df: pd.DataFrame, group_col: str = "group",
     pooled_rate = count.sum() / nobs.sum()
     se_pooled = np.sqrt(pooled_rate * (1 - pooled_rate) * (1 / n_treatment + 1 / n_control))
     z_score = absolute_lift / se_pooled
-    p_value = 2 * (1 - stats.norm.cdf(abs(z_score)))  # two-tailed test
+    p_value = 2 * stats.norm.sf(abs(z_score))  # two-tailed test
 
     # --- 95% Confidence interval for the DIFFERENCE in proportions ---
     ci_low, ci_high = confint_proportions_2indep(
