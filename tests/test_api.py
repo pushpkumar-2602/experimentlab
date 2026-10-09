@@ -72,3 +72,42 @@ def test_p_values_are_never_exactly_zero():
     for experiment in client.get("/experiments").json():
         body = client.get(f"/experiments/{experiment['experiment_id']}/analysis").json()
         assert body["analysis"]["p_value"] > 0
+
+
+def _first_experiment_id():
+    return client.get("/experiments").json()[0]["experiment_id"]
+
+
+def test_segments_returns_one_entry_per_segment():
+    body = client.get(f"/experiments/{_first_experiment_id()}/segments?by=user_value_segment").json()
+    assert body["n_segments"] == 3
+    assert len(body["segments"]) == 3
+
+
+def test_segments_bonferroni_threshold_is_alpha_divided_by_segment_count():
+    body = client.get(f"/experiments/{_first_experiment_id()}/segments?by=user_value_segment").json()
+    expected = 0.05 / body["n_segments"]
+    assert abs(body["alpha_per_segment_after_correction"] - expected) < 1e-12
+
+
+def test_segments_never_include_a_ship_decision():
+    # Shipping to one slice of users is a human decision, not a p-value cutoff.
+    body = client.get(f"/experiments/{_first_experiment_id()}/segments").json()
+    for segment in body["segments"]:
+        assert "decision" not in segment
+
+
+def test_segments_rejects_arbitrary_column_names():
+    response = client.get(f"/experiments/{_first_experiment_id()}/segments?by=name")
+    assert response.status_code == 422
+
+
+def test_correction_can_only_make_significance_stricter():
+    # The corrected threshold is never larger than 0.05, so a segment that
+    # passes the corrected test must also pass the uncorrected one.
+    body = client.get(f"/experiments/{_first_experiment_id()}/segments?by=user_value_segment").json()
+    for segment in body["segments"]:
+        if "skipped" in segment:
+            continue
+        if segment["significant_after_correction"]:
+            assert segment["is_significant"]

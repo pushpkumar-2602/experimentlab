@@ -1,3 +1,5 @@
+from typing import Literal
+
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
@@ -82,4 +84,53 @@ def analyze_experiment(experiment_id: int, minimum_detectable_effect: float = 0.
         "final_decision": final_decision,
         "guardrails": guardrails,
         "analysis": analysis,
+    })
+
+
+MIN_USERS_PER_GROUP = 30
+
+
+@app.get("/experiments/{experiment_id}/segments")
+def analyze_segments(
+    experiment_id: int,
+    by: Literal["is_new_user", "user_value_segment"] = "is_new_user",
+):
+    """
+    Runs the A/B analysis separately for each segment (e.g. new vs returning
+    users), with a Bonferroni correction because testing several segments
+    increases the chance of a false positive.
+    """
+    df = get_experiment_dataframe(experiment_id)
+    if df.empty:
+        raise HTTPException(status_code=404, detail=f"No data found for experiment {experiment_id}")
+
+    n_segments = df[by].nunique()
+    adjusted_alpha = 0.05 / n_segments
+
+    segments = []
+    for segment_value, subset in df.groupby(by):
+        group_sizes = subset["group"].value_counts()
+        too_small = (
+            group_sizes.get("treatment", 0) < MIN_USERS_PER_GROUP
+            or group_sizes.get("control", 0) < MIN_USERS_PER_GROUP
+        )
+        if too_small:
+            segments.append({
+                "segment": str(segment_value),
+                "skipped": f"fewer than {MIN_USERS_PER_GROUP} users in a group",
+            })
+            continue
+
+        result = analyze_ab_test(subset)
+        result.pop("decision")  # shipping to one segment is a human decision
+        result["segment"] = str(segment_value)
+        result["significant_after_correction"] = result["p_value"] < adjusted_alpha
+        segments.append(result)
+
+    return to_native({
+        "experiment_id": experiment_id,
+        "sliced_by": by,
+        "n_segments": n_segments,
+        "alpha_per_segment_after_correction": adjusted_alpha,
+        "segments": segments,
     })
