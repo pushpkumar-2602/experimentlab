@@ -1,4 +1,6 @@
+import altair as alt
 import httpx
+import pandas as pd
 import streamlit as st
 
 # The dashboard never touches the database. It only asks the API for data.
@@ -86,3 +88,71 @@ with right:
         st.success("PASS")
     else:
         st.error(size['status'])
+
+# --- For whom did it work? ----------------------------------------------
+st.subheader("For whom did it work?")
+
+slice_labels = {
+    "is_new_user": "New vs returning users",
+    "user_value_segment": "Customer value segment",
+}
+slice_by = st.radio(
+    "Slice results by",
+    list(slice_labels.keys()),
+    format_func=lambda key: slice_labels[key],
+    horizontal=True,
+)
+
+seg_report = fetch(f"/experiments/{experiment_id}/segments?by={slice_by}")
+
+rows = []
+for seg in seg_report["segments"]:
+    if "skipped" in seg:
+        continue  # too few users to test
+    name = seg["segment"]
+    if slice_by == "is_new_user":
+        name = "New users" if name == "True" else "Returning users"
+    rows.append({
+        "segment": name,
+        "users": seg["n_treatment"] + seg["n_control"],
+        "lift": seg["absolute_lift"],
+        "ci_low": seg["ci_95_low"],
+        "ci_high": seg["ci_95_high"],
+        "p_value": seg["p_value"],
+        "significant_after_correction": seg["significant_after_correction"],
+    })
+
+if not rows:
+    st.info("Not enough users in any segment to analyze.")
+else:
+    if report["experiment_status"] != "VALID":
+        st.caption("These segment effects come from an experiment that failed its guardrails. Treat them as unreliable.")
+
+    seg_df = pd.DataFrame(rows)
+
+    base = alt.Chart(seg_df).encode(y=alt.Y("segment:N", title=None, sort=None))
+    interval = base.mark_rule(strokeWidth=3).encode(
+        x=alt.X("ci_low:Q", title="Absolute lift in conversion rate (with 95% interval)",
+                axis=alt.Axis(format=".1%")),
+        x2="ci_high:Q",
+    )
+    dots = base.mark_point(size=140, filled=True).encode(x="lift:Q")
+    zero_line = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(strokeDash=[4, 4]).encode(x="x:Q")
+
+    st.altair_chart(interval + dots + zero_line, width="stretch")
+
+    table = pd.DataFrame({
+        "Segment": seg_df["segment"],
+        "Users": seg_df["users"],
+        "Lift": seg_df["lift"].map("{:.2%}".format),
+        "95% interval": [f"[{lo:.2%}, {hi:.2%}]" for lo, hi in zip(seg_df["ci_low"], seg_df["ci_high"])],
+        "p-value": seg_df["p_value"].map(format_p_value),
+        "Significant after correction": seg_df["significant_after_correction"].map({True: "Yes", False: "No"}),
+    })
+    st.dataframe(table, hide_index=True, width="stretch")
+
+    st.caption(
+        f"Each segment is tested at a stricter threshold (p < {seg_report['alpha_per_segment_after_correction']:.4f}) "
+        "because testing several segments raises the chance of a false positive. "
+        "Overlapping intervals do not prove two segments are the same; comparing segments properly needs a test of the difference between them."
+    )
