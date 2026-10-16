@@ -1,10 +1,12 @@
+import os
+
 import altair as alt
 import httpx
 import pandas as pd
 import streamlit as st
 
 # The dashboard never touches the database. It only asks the API for data.
-API_URL = "http://127.0.0.1:8000"
+API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
 
 st.set_page_config(page_title="ExperimentLab", layout="wide")
 st.title("ExperimentLab")

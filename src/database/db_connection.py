@@ -1,15 +1,18 @@
+import os
+
 from sqlalchemy import create_engine
+
+# Used when no DATABASE_URL environment variable is set (i.e. on your Mac).
+DEFAULT_DATABASE_URL = "postgresql+psycopg2://pushpkumar@localhost:5432/experimentlab"
+
 
 def get_engine():
     """
-    Creates a SQLAlchemy engine connected to our local PostgreSQL database.
-    An 'engine' is SQLAlchemy's term for a reusable connection manager --
-    we create one of these and reuse it, rather than opening a new raw
-    connection every time we want to run a query.
+    Creates a SQLAlchemy engine connected to PostgreSQL.
+
+    The address comes from the DATABASE_URL environment variable when it is
+    set (as it will be inside Docker); otherwise we use the local default.
+    We explicitly specify "+psycopg2" to tell SQLAlchemy which driver to use.
     """
-    # Format: postgresql+psycopg2://username:password@host:port/database_name
-    # We explicitly specify "+psycopg2" to tell SQLAlchemy which driver to use,
-    # since newer SQLAlchemy versions otherwise default to trying "psycopg" (v3),
-    # which we don't have installed.
-    connection_string = "postgresql+psycopg2://pushpkumar@localhost:5432/experimentlab"
-    return create_engine(connection_string)
+    database_url = os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+    return create_engine(database_url)
