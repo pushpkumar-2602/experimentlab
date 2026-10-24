@@ -28,5 +28,16 @@ services:
       db:
         condition: service_healthy
 
+  dashboard:
+    build: .
+    command: ["python", "-m", "streamlit", "run", "dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+    environment:
+      # The API's service name, which is its address on the private network.
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
 volumes:
   pgdata:
