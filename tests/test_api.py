@@ -111,3 +111,16 @@ def test_correction_can_only_make_significance_stricter():
             continue
         if segment["significant_after_correction"]:
             assert segment["is_significant"]
+
+
+def test_segments_include_a_valid_difference_test():
+    body = client.get(f"/experiments/{_first_experiment_id()}/segments?by=user_value_segment").json()
+    test = body["difference_test"]
+    assert test is not None
+    assert 0 <= test["p_value"] <= 1
+    assert test["df"] == body["n_segments"] - 1
+
+
+def test_difference_test_reports_which_slice_it_compared():
+    body = client.get(f"/experiments/{_first_experiment_id()}/segments?by=is_new_user").json()
+    assert body["difference_test"]["by"] == "is_new_user"

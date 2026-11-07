@@ -157,5 +157,21 @@ else:
     st.caption(
         f"Each segment is tested at a stricter threshold (p < {seg_report['alpha_per_segment_after_correction']:.4f}) "
         "because testing several segments raises the chance of a false positive. "
-        "Overlapping intervals do not prove two segments are the same; comparing segments properly needs a test of the difference between them."
+        "Overlapping intervals alone do not show whether segments truly differ; the test below does."
     )
+
+    difference_test = seg_report.get("difference_test")
+    if difference_test:
+        p_diff = difference_test["p_value"]
+        if p_diff < 0.05:
+            st.info(
+                "**Do the segments differ?** There is evidence that the treatment effect differs "
+                f"between segments (joint test p-value: {format_p_value(p_diff)})."
+            )
+        else:
+            st.info(
+                "**Do the segments differ?** No evidence that the treatment effect differs "
+                f"between segments (joint test p-value: {format_p_value(p_diff)}). This does not prove "
+                "the effect is identical: detecting a difference between segments takes more data "
+                "than detecting an effect."
+            )

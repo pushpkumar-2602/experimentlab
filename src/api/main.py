@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
 
 from src.analysis.ab_test_stats import analyze_ab_test
+from src.analysis.heterogeneity import check_effect_heterogeneity
 from src.database.db_connection import get_engine
 from src.database.queries import get_experiment_dataframe
 from src.experiments.guardrails import run_all_guardrails
@@ -127,10 +128,19 @@ def analyze_segments(
         result["significant_after_correction"] = result["p_value"] < adjusted_alpha
         segments.append(result)
 
+    # One joint test of "is the effect the same in every segment?"
+    try:
+        difference_test = check_effect_heterogeneity(df, by)
+        if not np.isfinite(difference_test["p_value"]):
+            difference_test = None  # JSON cannot represent NaN
+    except ValueError:
+        difference_test = None  # fewer than two segments to compare
+
     return to_native({
         "experiment_id": experiment_id,
         "sliced_by": by,
         "n_segments": n_segments,
         "alpha_per_segment_after_correction": adjusted_alpha,
         "segments": segments,
+        "difference_test": difference_test,
     })
